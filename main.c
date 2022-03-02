@@ -127,6 +127,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
   int mode = 0;
+  int traffic_mode = 0;
   MY_TOGGLE(GREEN);
   int old = (GPIOA->IDR % 2);
   int new;
@@ -135,31 +136,50 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
-//    if (Timer == 1000){
-//    	Timer = 0;
-//    	MY_TOGGLE(RED);
-//    }
-
-//	  if (MY_IS_PRESSED())
-//		  mode = (!mode);
 	  new = (GPIOA->IDR % 2);
+	  if (new - old == 1){
+		  traffic_mode = (traffic_mode+1) % 2;
+		  Timer = 0;
+		  mode = 0;
+		  GPIOD->ODR &= 0x00000FFF; // turning off all the lights
+	  }
 
-	  if (new-old == 1){
-		  mode = (mode + 1) % 4;
+	  if (traffic_mode == 0){
 		  switch (mode){
 		  case 0:
-			  MY_TOGGLE(YELLOW | GREEN);
+			  GPIOD->ODR |= 0x00001000;
+			  if (Timer == 3000){
+				  MY_TOGGLE(GREEN | YELLOW);
+				  Timer = 0;
+				  mode = (mode + 1) % 4;
+			  }
 			  break;
 		  case 1:
-			  MY_TOGGLE(GREEN | YELLOW);
+			  if (Timer == 1000){
+				  MY_TOGGLE(YELLOW | RED);
+				  Timer = 0;
+				  mode = (mode + 1) % 4;
+			  }
 			  break;
 		  case 2:
-			  MY_TOGGLE(YELLOW | RED);
+			  if (Timer == 3000){
+				  MY_TOGGLE(RED | YELLOW);
+				  Timer = 0;
+				  mode = (mode + 1) % 4;
+			  }
 			  break;
 		  case 3:
-			  MY_TOGGLE(RED | YELLOW);
+			  if (Timer == 1000){
+				  MY_TOGGLE(YELLOW | GREEN);
+				  Timer = 0;
+				  mode = (mode + 1) % 4;
+			  }
 			  break;
 		  }
+	  }
+	  else if (Timer == 1500){
+		  MY_TOGGLE(YELLOW);
+		  Timer = 0;
 	  }
 
 	  old = new;
