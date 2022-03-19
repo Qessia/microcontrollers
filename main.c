@@ -70,6 +70,7 @@ static void MX_SPI1_Init(void);
 void MX_USB_HOST_Process(void);
 void MY_GPIO_INIT(void);
 void MY_TOGGLE(int);
+void MY_BUTTON_ITR_INIT(void);
 
 /* USER CODE BEGIN PFP */
 
@@ -105,6 +106,13 @@ void MY_TOGGLE(int pins){
 	odr &= (!pins);
 	odr |= temp;
 	GPIOD->ODR = odr;
+}
+
+void MY_BUTTON_ITR_INIT(void){
+	SYSCFG->EXTICR[0] &= 0xFFFFFFF0;
+	EXTI->IMR |= 0x1;
+	EXTI->RTSR |= 0x1;
+	HAL_NVIC_EnableIRQ(6);
 }
 
 int Timer = 0;
@@ -150,6 +158,7 @@ int main(void)
   MX_USB_HOST_Init();
   /* USER CODE BEGIN 2 */
   MY_GPIO_INIT();
+  MY_BUTTON_ITR_INIT();
   MY_TOGGLE(GREEN);
   /* USER CODE END 2 */
 
@@ -465,10 +474,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(OTG_FS_PowerSwitchOn_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PA0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+//  GPIO_InitStruct.Pin = GPIO_PIN_0;
+//  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+//  GPIO_InitStruct.Pull = GPIO_NOPULL;
+//  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LD4_Pin LD3_Pin LD5_Pin LD6_Pin
                            Audio_RST_Pin */
@@ -486,8 +495,8 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(OTG_FS_OverCurrent_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+//  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+//  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
 }
 
