@@ -70,7 +70,6 @@ static void MX_SPI1_Init(void);
 void MX_USB_HOST_Process(void);
 void MY_GPIO_INIT(void);
 void MY_TOGGLE(int);
-int MY_IS_PRESSED(void);
 
 /* USER CODE BEGIN PFP */
 
@@ -78,7 +77,39 @@ int MY_IS_PRESSED(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void MY_GPIO_INIT(void){
+
+	// INIT GPIO
+	int li;
+
+	li = GPIOD->MODER;
+
+	li = li & 0x00FFFFFF;
+
+	li = li | (MODE_output << 30);
+	li = li | (MODE_output << 28);
+	li = li | (MODE_output << 26);
+	li = li | (MODE_output << 24);
+
+	GPIOD->MODER = li;
+
+	GPIOA->MODER &= 0xFFFFFFFC;
+
+}
+
+void MY_TOGGLE(int pins){
+	int odr = GPIOD->ODR;
+	int temp = odr ^ pins;
+	temp &= pins;
+	odr &= (!pins);
+	odr |= temp;
+	GPIOD->ODR = odr;
+}
+
 int Timer = 0;
+int traffic_mode = 0;
+int color_mode = 0;
 /* USER CODE END 0 */
 
 /**
@@ -117,88 +148,64 @@ int main(void)
   MX_I2S3_Init();
   MX_SPI1_Init();
   MX_USB_HOST_Init();
-  MY_GPIO_INIT();
-
   /* USER CODE BEGIN 2 */
-
+  MY_GPIO_INIT();
+  MY_TOGGLE(GREEN);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-  int mode = 0;
-  MY_TOGGLE(GREEN);
-  int old = (GPIOA->IDR % 2);
-  int new;
+// NVIC IRQ ENABLE - разрешить нужное прерывание
 
   while (1)
   {
-    /* USER CODE END WHILE */
 
-//    if (Timer == 1000){
-//    	Timer = 0;
-//    	MY_TOGGLE(RED);
-//    }
 
-//	  if (MY_IS_PRESSED())
-//		  mode = (!mode);
-	  new = (GPIOA->IDR % 2);
-
-	  if (new-old == 1){
-		  mode = (mode + 1) % 4;
-		  switch (mode){
+	  if (traffic_mode == 0){
+		  switch (color_mode){
 		  case 0:
-			  MY_TOGGLE(YELLOW | GREEN);
+			  GPIOD->ODR |= 0x00001000;
+			  if (Timer == 3000){
+				  MY_TOGGLE(GREEN | YELLOW);
+				  Timer = 0;
+				  color_mode = (color_mode + 1) % 4;
+			  }
 			  break;
 		  case 1:
-			  MY_TOGGLE(GREEN | YELLOW);
+			  if (Timer == 1000){
+				  MY_TOGGLE(YELLOW | RED);
+				  Timer = 0;
+				  color_mode = (color_mode + 1) % 4;
+			  }
 			  break;
 		  case 2:
-			  MY_TOGGLE(YELLOW | RED);
+			  if (Timer == 3000){
+				  MY_TOGGLE(RED | YELLOW);
+				  Timer = 0;
+				  color_mode = (color_mode + 1) % 4;
+			  }
 			  break;
 		  case 3:
-			  MY_TOGGLE(RED | YELLOW);
+			  if (Timer == 1000){
+				  MY_TOGGLE(YELLOW | GREEN);
+				  Timer = 0;
+				  color_mode = (color_mode + 1) % 4;
+			  }
 			  break;
 		  }
 	  }
+	  else if (Timer == 1500){
+		  MY_TOGGLE(YELLOW);
+		  Timer = 0;
+	  }
 
-	  old = new;
-    /* USER CODE BEGIN 3 */
   }
+    /* USER CODE END WHILE */
+    MX_USB_HOST_Process();
+
+    /* USER CODE BEGIN 3 */
+
   /* USER CODE END 3 */
-}
-
-void MY_GPIO_INIT(void){
-
-	// INIT GPIO
-	int li;
-
-	li = GPIOD->MODER;
-
-	li = li & 0x00FFFFFF;
-
-	li = li | (MODE_output << 30);
-	li = li | (MODE_output << 28);
-	li = li | (MODE_output << 26);
-	li = li | (MODE_output << 24);
-
-	GPIOD->MODER = li;
-
-	GPIOA->MODER &= 0xFFFFFFFC;
-
-}
-
-void MY_TOGGLE(int pins){
-	int odr = GPIOD->ODR;
-	int temp = odr ^ pins;
-	temp &= pins;
-	odr &= (!pins);
-	odr |= temp;
-	GPIOD->ODR = odr;
-}
-
-int MY_IS_PRESSED(void){
-	return (GPIOA->IDR % 2 == 0) ? 0 : 1;
 }
 
 /**
@@ -459,7 +466,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : PA0 */
   GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
@@ -477,6 +484,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(OTG_FS_OverCurrent_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
 }
 
