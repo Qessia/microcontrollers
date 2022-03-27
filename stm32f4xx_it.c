@@ -205,18 +205,18 @@ void SysTick_Handler(void)
 void EXTI0_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI0_IRQn 0 */
+  if ((TIM4->CCR1 == 0) || (TIM4->CCR1 == TIM4->ARR))
+	  incdec = !incdec;
   Timer = 0;
   while (GPIOA->IDR % 2){
 	  if (Timer++ == 100){
-		  if ((TIM4->CCR1 == 0) || (TIM4->CCR1 == TIM4->ARR))
-			  incdec = !incdec;
-		  if (incdec){
+		  if (incdec && (TIM4->CCR1 < TIM4->ARR)){
 			  TIM4->CCR1++;
 			  TIM4->CCR2++;
 			  TIM4->CCR3++;
 			  TIM4->CCR4++;
 		  }
-		  else {
+		  else if (TIM4->CCR1 > 0){
 			  TIM4->CCR1--;
 			  TIM4->CCR2--;
 			  TIM4->CCR3--;
