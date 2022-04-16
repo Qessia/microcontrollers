@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "usb_host.h"
+#include "math.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -55,6 +56,8 @@ I2S_HandleTypeDef hi2s3;
 
 SPI_HandleTypeDef hspi1;
 
+TIM_HandleTypeDef htim4;
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -67,10 +70,8 @@ static void MX_I2C1_Init(void);
 static void MX_I2S2_Init(void);
 static void MX_I2S3_Init(void);
 static void MX_SPI1_Init(void);
+static void MX_TIM4_Init(void);
 void MX_USB_HOST_Process(void);
-void MY_GPIO_INIT(void);
-void MY_TOGGLE(int);
-int MY_IS_PRESSED(void);
 
 /* USER CODE BEGIN PFP */
 
@@ -78,6 +79,52 @@ int MY_IS_PRESSED(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void MY_GPIO_INIT(void){
+
+	// INIT GPIO
+	int li;
+
+	li = GPIOD->MODER;
+
+	li = li & 0x00FFFFFF;
+
+	li = li | (MODE_output << 30);
+	li = li | (MODE_output << 28);
+	li = li | (MODE_output << 26);
+	li = li | (MODE_output << 24);
+
+	GPIOD->MODER = li;
+
+	GPIOA->MODER &= 0xFFFFFFFC;
+
+}
+
+void MY_TOGGLE(int pins){
+	int odr = GPIOD->ODR;
+	int temp = odr ^ pins;
+	temp &= pins;
+	odr &= (!pins);
+	odr |= temp;
+	GPIOD->ODR = odr;
+}
+
+void MY_BUTTON_ITR_INIT(void){
+	SYSCFG->EXTICR[0] &= 0xFFFFFFF0;
+	EXTI->IMR |= 0x1;
+	EXTI->RTSR |= 0x1;
+	HAL_NVIC_EnableIRQ(6);
+}
+
+void MY_PWM_INIT(void){
+	HAL_TIM_Base_Start(&htim4);
+	HAL_TIM_PWM_Init(&htim4);
+	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
+	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
+	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
+}
+
 int Timer = 0;
 /* USER CODE END 0 */
 
@@ -117,88 +164,39 @@ int main(void)
   MX_I2S3_Init();
   MX_SPI1_Init();
   MX_USB_HOST_Init();
-  MY_GPIO_INIT();
-
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-
+  MY_PWM_INIT();
+  TIM4->CCR1 = 10;
+  TIM4->CCR2 = 10;
+  TIM4->CCR3 = 10;
+  TIM4->CCR4 = 1;
+  Timer = 0;
+  int period = 400;
+  //MY_BUTTON_ITR_INIT();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  int mode = 0;
-  MY_TOGGLE(GREEN);
-  int old = (GPIOA->IDR % 2);
-  int new;
-
   while (1)
   {
-    /* USER CODE END WHILE */
+	  if (Timer == period)
+		  Timer = 0;
 
-//    if (Timer == 1000){
-//    	Timer = 0;
-//    	MY_TOGGLE(RED);
-//    }
+	  TIM4->CCR4 = 32767.5 + 32767.5 * sin((float)Timer * (2 * M_PI / (float)period));
+	  TIM4->CCR4 = exp(Timer);
 
-//	  if (MY_IS_PRESSED())
-//		  mode = (!mode);
-	  new = (GPIOA->IDR % 2);
+	  // sin(t) = A*sin(t*(2 * pi / T)
+	  // exp(t) = e^t
 
-	  if (new-old == 1){
-		  mode = (mode + 1) % 4;
-		  switch (mode){
-		  case 0:
-			  MY_TOGGLE(YELLOW | GREEN);
-			  break;
-		  case 1:
-			  MY_TOGGLE(GREEN | YELLOW);
-			  break;
-		  case 2:
-			  MY_TOGGLE(YELLOW | RED);
-			  break;
-		  case 3:
-			  MY_TOGGLE(RED | YELLOW);
-			  break;
-		  }
-	  }
-
-	  old = new;
-    /* USER CODE BEGIN 3 */
   }
+    /* USER CODE END WHILE */
+    MX_USB_HOST_Process();
+
+    /* USER CODE BEGIN 3 */
+
   /* USER CODE END 3 */
-}
-
-void MY_GPIO_INIT(void){
-
-	// INIT GPIO
-	int li;
-
-	li = GPIOD->MODER;
-
-	li = li & 0x00FFFFFF;
-
-	li = li | (MODE_output << 30);
-	li = li | (MODE_output << 28);
-	li = li | (MODE_output << 26);
-	li = li | (MODE_output << 24);
-
-	GPIOD->MODER = li;
-
-	GPIOA->MODER &= 0xFFFFFFFC;
-
-}
-
-void MY_TOGGLE(int pins){
-	int odr = GPIOD->ODR;
-	int temp = odr ^ pins;
-	temp &= pins;
-	odr &= (!pins);
-	odr |= temp;
-	GPIOD->ODR = odr;
-}
-
-int MY_IS_PRESSED(void){
-	return (GPIOA->IDR % 2 == 0) ? 0 : 1;
 }
 
 /**
@@ -405,6 +403,78 @@ static void MX_SPI1_Init(void)
 }
 
 /**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 0;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 65535;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.Pulse = 4000;
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
+  HAL_TIM_MspPostInit(&htim4);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -428,8 +498,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(OTG_FS_PowerSwitchOn_GPIO_Port, OTG_FS_PowerSwitchOn_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, LD4_Pin|LD3_Pin|LD5_Pin|LD6_Pin
-                          |Audio_RST_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(Audio_RST_GPIO_Port, Audio_RST_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : DATA_Ready_Pin */
   GPIO_InitStruct.Pin = DATA_Ready_Pin;
@@ -459,24 +528,26 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : PA0 */
   GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LD4_Pin LD3_Pin LD5_Pin LD6_Pin
-                           Audio_RST_Pin */
-  GPIO_InitStruct.Pin = LD4_Pin|LD3_Pin|LD5_Pin|LD6_Pin
-                          |Audio_RST_Pin;
+  /*Configure GPIO pin : Audio_RST_Pin */
+  GPIO_InitStruct.Pin = Audio_RST_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+  HAL_GPIO_Init(Audio_RST_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : OTG_FS_OverCurrent_Pin */
   GPIO_InitStruct.Pin = OTG_FS_OverCurrent_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(OTG_FS_OverCurrent_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
 }
 
